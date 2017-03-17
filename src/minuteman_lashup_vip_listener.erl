@@ -61,7 +61,7 @@
 -type ip_vip() :: {tcp, inet:ip4_address(), inet:port_number()}.
 -type vip_name() :: binary().
 -type named_vip() :: {tcp, {name, {vip_name(), framework_name()}}, inet:port_number()}.
--type vip() :: {ip_vip() | named_vip(), [ip_port()]}.
+-type vip2() :: {ip_vip() | named_vip(), [{inet:ip4_address(), ip_port()}]}.
 
 
 
@@ -104,7 +104,7 @@ init([]) ->
     ets_restart(ip_to_name),
     MinIP = ip_to_integer(minuteman_config:min_named_ip()),
     MaxIP = ip_to_integer(minuteman_config:max_named_ip()),
-    {ok, Ref} = lashup_kv_events_helper:start_link(ets:fun2ms(fun({?VIPS_KEY}) -> true end)),
+    {ok, Ref} = lashup_kv_events_helper:start_link(ets:fun2ms(fun({?VIPS_KEY2}) -> true end)),
     State = #state{ref = Ref, max_ip_num = MaxIP, min_ip_num = MinIP},
     {ok, State}.
 
@@ -240,7 +240,7 @@ rewrite_keys({{RealKey, riak_dt_orswot}, Value}) ->
     {RealKey, Value}.
 
 %% @doc Extracts name based vips. Binds names
--spec(rebind_names([vip()], state()) -> [ip_vip()]).
+-spec(rebind_names([vip2()], state()) -> [ip_vip()]).
 rebind_names(VIPs0, State) ->
     Names0 = [Name || {{tcp, {name, Name}, _Portnumber}, _Backends} <- VIPs0],
     Names1 = lists:map(fun({Name, FWName}) -> binary_to_name([Name, FWName]) end, Names0),
@@ -248,7 +248,7 @@ rebind_names(VIPs0, State) ->
     update_name_mapping(Names2, State),
     lists:map(fun(VIP) -> rewrite_name(VIP) end, VIPs0).
 
--spec(rewrite_name(vip()) -> ip_vip()).
+-spec(rewrite_name(vip2()) -> ip_vip()).
 rewrite_name({{tcp, {name, {Name, FWName}}, PortNum}, BEs}) ->
     FullName = binary_to_name([Name, FWName]),
     [{_, IPNum}] = ets:lookup(name_to_ip, FullName),
@@ -455,17 +455,17 @@ process_vips_test() ->
     VIPs = [
         {
             {{tcp, {1, 2, 3, 4}, 80}, riak_dt_orswot},
-            [{{10, 0, 3, 46}, 11778}]
+            [{{10, 0, 3, 46}, {10, 0, 3, 46}, 11778}]
         },
         {
             {{tcp, {name, {<<"/foo">>, <<"marathon">>}}, 80}, riak_dt_orswot},
-            [{{10, 0, 3, 46}, 25458}]
+            [{{10, 0, 3, 46}, {10, 0, 3, 46}, 25458}]
         }
     ],
     Out = process_vips(VIPs, State),
     Expected = [
-        {{tcp, {1, 2, 3, 4}, 80}, [{{10, 0, 3, 46}, 11778}]},
-        {{tcp, {11, 0, 0, 36}, 80}, [{{10, 0, 3, 46}, 25458}]}
+        {{tcp, {1, 2, 3, 4}, 80}, [{{10, 0, 3, 46}, {10, 0, 3, 46}, 11778}]},
+        {{tcp, {11, 0, 0, 36}, 80}, [{{10, 0, 3, 46}, {10, 0, 3, 46}, 25458}]}
     ],
     ?assertEqual(Expected, Out),
     State.
